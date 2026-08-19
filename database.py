@@ -29,7 +29,7 @@ def create_table():
 
             candidate_name TEXT,
 
-            filename TEXT,
+            filename TEXT UNIQUE,
 
             match_score INTEGER,
 
@@ -58,7 +58,7 @@ def create_table():
 
 
 # ==========================================
-# SAVE CANDIDATE
+# SAVE / UPDATE CANDIDATE
 # ==========================================
 
 def save_candidate(candidate):
@@ -66,63 +66,205 @@ def save_candidate(candidate):
     connection = get_connection()
     cursor = connection.cursor()
 
+    # Check whether this resume already exists
     cursor.execute(
         """
-        INSERT INTO candidates (
-
-            candidate_name,
-            filename,
-            match_score,
-            candidate_summary,
-            matching_skills,
-            missing_skills,
-            education,
-            experience,
-            strengths,
-            recommendations,
-            justification
-
-        )
-
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        SELECT id
+        FROM candidates
+        WHERE filename = ?
         """,
-
         (
-            candidate.get("candidate_name"),
-
             candidate.get("filename"),
-
-            candidate.get("match_score"),
-
-            candidate.get("candidate_summary"),
-
-            ", ".join(
-                candidate.get("matching_skills", [])
-            ),
-
-            ", ".join(
-                candidate.get("missing_skills", [])
-            ),
-
-            ", ".join(
-                candidate.get("education", [])
-            ),
-
-            ", ".join(
-                candidate.get("experience", [])
-            ),
-
-            ", ".join(
-                candidate.get("strengths", [])
-            ),
-
-            ", ".join(
-                candidate.get("recommendations", [])
-            ),
-
-            candidate.get("justification")
         )
     )
+
+    existing_candidate = cursor.fetchone()
+
+    # ======================================
+    # UPDATE EXISTING CANDIDATE
+    # ======================================
+
+    if existing_candidate:
+
+        cursor.execute(
+            """
+            UPDATE candidates
+
+            SET
+                candidate_name = ?,
+                match_score = ?,
+                candidate_summary = ?,
+                matching_skills = ?,
+                missing_skills = ?,
+                education = ?,
+                experience = ?,
+                strengths = ?,
+                recommendations = ?,
+                justification = ?
+
+            WHERE filename = ?
+            """,
+
+            (
+                candidate.get("candidate_name"),
+
+                candidate.get("match_score"),
+
+                candidate.get("candidate_summary"),
+
+                ", ".join(
+                    candidate.get(
+                        "matching_skills",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "missing_skills",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "education",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "experience",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "strengths",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "recommendations",
+                        []
+                    )
+                ),
+
+                candidate.get(
+                    "justification"
+                ),
+
+                candidate.get(
+                    "filename"
+                )
+            )
+        )
+
+    # ======================================
+    # INSERT NEW CANDIDATE
+    # ======================================
+
+    else:
+
+        cursor.execute(
+            """
+            INSERT INTO candidates (
+
+                candidate_name,
+
+                filename,
+
+                match_score,
+
+                candidate_summary,
+
+                matching_skills,
+
+                missing_skills,
+
+                education,
+
+                experience,
+
+                strengths,
+
+                recommendations,
+
+                justification
+
+            )
+
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+
+            (
+                candidate.get(
+                    "candidate_name"
+                ),
+
+                candidate.get(
+                    "filename"
+                ),
+
+                candidate.get(
+                    "match_score"
+                ),
+
+                candidate.get(
+                    "candidate_summary"
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "matching_skills",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "missing_skills",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "education",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "experience",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "strengths",
+                        []
+                    )
+                ),
+
+                ", ".join(
+                    candidate.get(
+                        "recommendations",
+                        []
+                    )
+                ),
+
+                candidate.get(
+                    "justification"
+                )
+            )
+        )
 
     connection.commit()
     connection.close()
@@ -141,17 +283,29 @@ def get_all_candidates():
     cursor.execute(
         """
         SELECT
+
             id,
+
             candidate_name,
+
             filename,
+
             match_score,
+
             candidate_summary,
+
             matching_skills,
+
             missing_skills,
+
             education,
+
             experience,
+
             strengths,
+
             recommendations,
+
             justification
 
         FROM candidates
