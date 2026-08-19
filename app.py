@@ -3,12 +3,7 @@ import fitz
 import pandas as pd
 
 from llm_service import analyze_resume
-from database import (
-    create_table,
-    save_candidate,
-    get_all_candidates,
-    clear_candidates
-)
+from database import create_table
 
 
 # =========================================================
@@ -37,16 +32,17 @@ create_table()
 
 
 # =========================================================
-# TEMPORARY DATABASE RESET
+# SESSION STATE
 # =========================================================
+# IMPORTANT:
+# Candidates are stored ONLY for the current Streamlit
+# session.
+#
+# When a new session starts, the list is empty.
+# Therefore old candidates will NOT appear automatically.
 
-if st.query_params.get("reset") == "true":
-
-    clear_candidates()
-
-    st.query_params.clear()
-
-    st.rerun()
+if "session_candidates" not in st.session_state:
+    st.session_state.session_candidates = []
 
 
 # =========================================================
@@ -213,6 +209,12 @@ if st.button(
 
     else:
 
+        # Start a fresh analysis for this button click.
+        # This prevents old results from mixing with the
+        # new screening batch.
+
+        st.session_state.session_candidates = []
+
         results = []
 
         # -------------------------------------------------
@@ -275,20 +277,10 @@ if st.button(
                 result["filename"] = file.name
 
                 # -----------------------------------------
-                # SAVE TO DATABASE
+                # STORE ONLY IN CURRENT SESSION
                 # -----------------------------------------
 
-                save_candidate(
-                    result
-                )
-
-                # -----------------------------------------
-                # ADD TO RESULTS
-                # -----------------------------------------
-
-                results.append(
-                    result
-                )
+                results.append(result)
 
                 # -----------------------------------------
                 # UPDATE PROGRESS
@@ -305,6 +297,10 @@ if st.button(
                     f"{file.name}: {e}"
                 )
 
+                progress.progress(
+                    (index + 1) / total_files
+                )
+
         # =================================================
         # SORT RESULTS
         # =================================================
@@ -316,6 +312,12 @@ if st.button(
             ),
             reverse=True
         )
+
+        # =================================================
+        # SAVE CURRENT SESSION RESULTS
+        # =================================================
+
+        st.session_state.session_candidates = results
 
         # =================================================
         # DISPLAY RESULTS
@@ -687,35 +689,41 @@ if st.button(
 
 
 # =========================================================
-# CANDIDATE DATABASE DASHBOARD
+# CURRENT SESSION DASHBOARD
 # =========================================================
 
-st.divider()
-
-st.markdown(
-    '<div class="section-title">'
-    '📊 Candidate Dashboard'
-    '</div>',
-    unsafe_allow_html=True
-)
-
-database_candidates = get_all_candidates()
+current_candidates = st.session_state.session_candidates
 
 
-if database_candidates:
+if current_candidates:
 
-    total_candidates = len(database_candidates)
+    st.divider()
+
+    st.markdown(
+        '<div class="section-title">'
+        '📊 Candidate Dashboard'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    total_candidates = len(current_candidates)
 
     shortlisted_candidates = [
         candidate
-        for candidate in database_candidates
-        if candidate[3] >= SHORTLIST_THRESHOLD
+        for candidate in current_candidates
+        if candidate.get(
+            "match_score",
+            0
+        ) >= SHORTLIST_THRESHOLD
     ]
 
     average_score = (
         sum(
-            candidate[3]
-            for candidate in database_candidates
+            candidate.get(
+                "match_score",
+                0
+            )
+            for candidate in current_candidates
         )
         / total_candidates
     )
@@ -743,26 +751,33 @@ if database_candidates:
             f"{average_score:.1f}%"
         )
 
-    st.write("")
-
     # =====================================================
-    # STORED RANKINGS
+    # STORED CANDIDATE RANKINGS
     # =====================================================
 
     st.markdown(
-        "### 🏆 Stored Candidate Rankings"
+        "### 🏆 Candidate Rankings"
     )
 
-    stored_table = []
+    ranking_table = []
 
-    for candidate in database_candidates:
+    for candidate in current_candidates:
 
-        score = candidate[3]
+        score = candidate.get(
+            "match_score",
+            0
+        )
 
-        stored_table.append(
+        ranking_table.append(
             {
-                "Candidate": candidate[1],
-                "Resume": candidate[2],
+                "Candidate": candidate.get(
+                    "candidate_name",
+                    "Unknown Candidate"
+                ),
+                "Resume": candidate.get(
+                    "filename",
+                    "Unknown"
+                ),
                 "Match Score": f"{score}%",
                 "Status": (
                     "✅ Shortlisted"
@@ -773,7 +788,7 @@ if database_candidates:
         )
 
     st.dataframe(
-        stored_table,
+        ranking_table,
         use_container_width=True,
         hide_index=True
     )
@@ -811,7 +826,11 @@ if database_candidates:
             "🏆 Show shortlisted only"
         )
 
-    filtered_candidates = database_candidates
+    # =====================================================
+    # APPLY FILTERS
+    # =====================================================
+
+    filtered_candidates = current_candidates
 
     if search_name.strip():
 
@@ -819,13 +838,19 @@ if database_candidates:
             candidate
             for candidate in filtered_candidates
             if search_name.lower()
-            in candidate[1].lower()
+            in candidate.get(
+                "candidate_name",
+                ""
+            ).lower()
         ]
 
     filtered_candidates = [
         candidate
         for candidate in filtered_candidates
-        if candidate[3] >= minimum_score
+        if candidate.get(
+            "match_score",
+            0
+        ) >= minimum_score
     ]
 
     if shortlisted_only:
@@ -833,7 +858,10 @@ if database_candidates:
         filtered_candidates = [
             candidate
             for candidate in filtered_candidates
-            if candidate[3] >= SHORTLIST_THRESHOLD
+            if candidate.get(
+                "match_score",
+                0
+            ) >= SHORTLIST_THRESHOLD
         ]
 
     # =====================================================
@@ -850,12 +878,21 @@ if database_candidates:
 
         for candidate in filtered_candidates:
 
-            score = candidate[3]
+            score = candidate.get(
+                "match_score",
+                0
+            )
 
             filtered_table.append(
                 {
-                    "Candidate": candidate[1],
-                    "Resume": candidate[2],
+                    "Candidate": candidate.get(
+                        "candidate_name",
+                        "Unknown Candidate"
+                    ),
+                    "Resume": candidate.get(
+                        "filename",
+                        "Unknown"
+                    ),
                     "Match Score": f"{score}%",
                     "Status": (
                         "✅ Shortlisted"
@@ -889,12 +926,21 @@ if database_candidates:
 
     for candidate in filtered_candidates:
 
-        score = candidate[3]
+        score = candidate.get(
+            "match_score",
+            0
+        )
 
         export_data.append(
             {
-                "Candidate Name": candidate[1],
-                "Resume": candidate[2],
+                "Candidate Name": candidate.get(
+                    "candidate_name",
+                    "Unknown Candidate"
+                ),
+                "Resume": candidate.get(
+                    "filename",
+                    "Unknown"
+                ),
                 "Match Score": score,
                 "Status": (
                     "Shortlisted"
@@ -921,38 +967,55 @@ if database_candidates:
             mime="text/csv"
         )
 
-else:
-
-    st.info(
-        "No candidates have been analyzed yet."
-    )
-
 
 # =========================================================
 # CANDIDATE COMPARISON
 # =========================================================
 
-st.divider()
+if len(current_candidates) >= 2:
 
-st.markdown(
-    '<div class="section-title">'
-    '⚖️ Compare Candidates'
-    '</div>',
-    unsafe_allow_html=True
-)
+    st.divider()
 
-comparison_candidates = get_all_candidates()
+    st.markdown(
+        '<div class="section-title">'
+        '⚖️ Compare Candidates'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
-
-if len(comparison_candidates) >= 2:
+    # -----------------------------------------------------
+    # CREATE OPTIONS
+    # -----------------------------------------------------
 
     candidate_options = {}
 
-    for candidate in comparison_candidates:
+    for index, candidate in enumerate(
+        current_candidates
+    ):
 
-        candidate_options[
-            f"{candidate[1]} — {candidate[3]}%"
-        ] = candidate[0]
+        candidate_name = candidate.get(
+            "candidate_name",
+            "Unknown Candidate"
+        )
+
+        score = candidate.get(
+            "match_score",
+            0
+        )
+
+        # Index makes every option unique even if two
+        # candidates have the same name and score.
+
+        option = (
+            f"{candidate_name} — {score}% "
+            f"(Candidate {index + 1})"
+        )
+
+        candidate_options[option] = index
+
+    # -----------------------------------------------------
+    # SELECT CANDIDATES
+    # -----------------------------------------------------
 
     selected_candidates = st.multiselect(
         "Select candidates to compare",
@@ -966,20 +1029,19 @@ if len(comparison_candidates) >= 2:
 
     if len(selected_candidates) >= 2:
 
-        selected_ids = [
+        selected_indexes = [
             candidate_options[name]
             for name in selected_candidates
         ]
 
         selected_records = [
-            candidate
-            for candidate in comparison_candidates
-            if candidate[0] in selected_ids
+            current_candidates[index]
+            for index in selected_indexes
         ]
 
-        # =================================================
+        # -------------------------------------------------
         # COMPARISON TABLE
-        # =================================================
+        # -------------------------------------------------
 
         st.markdown(
             "### 📊 Candidate Comparison"
@@ -989,13 +1051,22 @@ if len(comparison_candidates) >= 2:
 
         for candidate in selected_records:
 
-            score = candidate[3]
+            score = candidate.get(
+                "match_score",
+                0
+            )
 
             comparison_data.append(
                 {
-                    "Candidate": candidate[1],
+                    "Candidate": candidate.get(
+                        "candidate_name",
+                        "Unknown Candidate"
+                    ),
                     "Match Score": f"{score}%",
-                    "Resume": candidate[2],
+                    "Resume": candidate.get(
+                        "filename",
+                        "Unknown"
+                    ),
                     "Status": (
                         "✅ Shortlisted"
                         if score >= SHORTLIST_THRESHOLD
@@ -1010,9 +1081,9 @@ if len(comparison_candidates) >= 2:
             hide_index=True
         )
 
-        # =================================================
+        # -------------------------------------------------
         # SCORE COMPARISON
-        # =================================================
+        # -------------------------------------------------
 
         st.markdown(
             "### 📈 Score Comparison"
@@ -1020,31 +1091,40 @@ if len(comparison_candidates) >= 2:
 
         for candidate in selected_records:
 
+            score = candidate.get(
+                "match_score",
+                0
+            )
+
             st.write(
-                f"**{candidate[1]}** — "
-                f"{candidate[3]}%"
+                f"**{candidate.get('candidate_name', 'Unknown Candidate')}** "
+                f"— **{score}%**"
             )
 
             st.progress(
                 min(
-                    candidate[3] / 100,
+                    score / 100,
                     1.0
                 )
             )
 
-        # =================================================
+        # -------------------------------------------------
         # BEST CANDIDATE
-        # =================================================
+        # -------------------------------------------------
 
         best_candidate = max(
             selected_records,
-            key=lambda x: x[3]
+            key=lambda x: x.get(
+                "match_score",
+                0
+            )
         )
 
         st.success(
-            f"🏆 Best Match: **{best_candidate[1]}** "
+            f"🏆 Best Match: "
+            f"**{best_candidate.get('candidate_name', 'Unknown Candidate')}** "
             f"with a match score of "
-            f"**{best_candidate[3]}%**"
+            f"**{best_candidate.get('match_score', 0)}%**"
         )
 
     else:
@@ -1052,13 +1132,6 @@ if len(comparison_candidates) >= 2:
         st.info(
             "Select at least two candidates to compare."
         )
-
-else:
-
-    st.info(
-        "At least two candidates are required "
-        "for comparison."
-    )
 
 
 # =========================================================
