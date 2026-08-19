@@ -39,12 +39,6 @@ create_table()
 # =========================================================
 # TEMPORARY DATABASE RESET
 # =========================================================
-# To clear the existing candidates on Streamlit Cloud,
-# open the deployed app once with:
-#
-# https://YOUR-APP-URL.streamlit.app/?reset=true
-#
-# After clearing, the URL parameter is removed automatically.
 
 if st.query_params.get("reset") == "true":
 
@@ -128,262 +122,6 @@ st.markdown(
     '</div>',
     unsafe_allow_html=True
 )
-
-st.divider()
-
-
-# =========================================================
-# CANDIDATE DATABASE DASHBOARD
-# =========================================================
-
-st.markdown(
-    '<div class="section-title">'
-    '📊 Candidate Dashboard'
-    '</div>',
-    unsafe_allow_html=True
-)
-
-database_candidates = get_all_candidates()
-
-
-if database_candidates:
-
-    total_candidates = len(database_candidates)
-
-    shortlisted_candidates = [
-        candidate
-        for candidate in database_candidates
-        if candidate[3] >= SHORTLIST_THRESHOLD
-    ]
-
-    average_score = (
-        sum(candidate[3] for candidate in database_candidates)
-        / total_candidates
-    )
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-
-        st.metric(
-            "👥 Total Candidates",
-            total_candidates
-        )
-
-    with col2:
-
-        st.metric(
-            "🏆 Shortlisted",
-            len(shortlisted_candidates)
-        )
-
-    with col3:
-
-        st.metric(
-            "📈 Average Match",
-            f"{average_score:.1f}%"
-        )
-
-    st.write("")
-
-    # -----------------------------------------------------
-    # STORED RANKINGS
-    # -----------------------------------------------------
-
-    st.markdown(
-        "### 🏆 Stored Candidate Rankings"
-    )
-
-    stored_table = []
-
-    for candidate in database_candidates:
-
-        candidate_name = candidate[1]
-        filename = candidate[2]
-        score = candidate[3]
-
-        status = (
-            "✅ Shortlisted"
-            if score >= SHORTLIST_THRESHOLD
-            else "❌ Not shortlisted"
-        )
-
-        stored_table.append(
-            {
-                "Candidate": candidate_name,
-                "Resume": filename,
-                "Match Score": f"{score}%",
-                "Status": status
-            }
-        )
-
-    st.dataframe(
-        stored_table,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    # =====================================================
-    # RECRUITER FILTERS
-    # =====================================================
-
-    st.markdown(
-        "### 🔎 Recruiter Filters"
-    )
-
-    filter_col1, filter_col2, filter_col3 = st.columns(3)
-
-    with filter_col1:
-
-        search_name = st.text_input(
-            "Search candidate",
-            placeholder="Enter candidate name..."
-        )
-
-    with filter_col2:
-
-        minimum_score = st.slider(
-            "Minimum match score",
-            min_value=0,
-            max_value=100,
-            value=0,
-            step=5
-        )
-
-    with filter_col3:
-
-        shortlisted_only = st.checkbox(
-            "🏆 Show shortlisted only"
-        )
-
-    # -----------------------------------------------------
-    # APPLY SEARCH FILTER
-    # -----------------------------------------------------
-
-    filtered_candidates = database_candidates
-
-    if search_name.strip():
-
-        filtered_candidates = [
-            candidate
-            for candidate in filtered_candidates
-            if search_name.lower()
-            in candidate[1].lower()
-        ]
-
-    # -----------------------------------------------------
-    # APPLY SCORE FILTER
-    # -----------------------------------------------------
-
-    filtered_candidates = [
-        candidate
-        for candidate in filtered_candidates
-        if candidate[3] >= minimum_score
-    ]
-
-    # -----------------------------------------------------
-    # APPLY SHORTLIST FILTER
-    # -----------------------------------------------------
-
-    if shortlisted_only:
-
-        filtered_candidates = [
-            candidate
-            for candidate in filtered_candidates
-            if candidate[3] >= SHORTLIST_THRESHOLD
-        ]
-
-    # -----------------------------------------------------
-    # DISPLAY FILTERED RESULTS
-    # -----------------------------------------------------
-
-    st.markdown(
-        "### 🔍 Filtered Candidates"
-    )
-
-    if filtered_candidates:
-
-        filtered_table = []
-
-        for candidate in filtered_candidates:
-
-            score = candidate[3]
-
-            filtered_table.append(
-                {
-                    "Candidate": candidate[1],
-                    "Resume": candidate[2],
-                    "Match Score": f"{score}%",
-                    "Status": (
-                        "✅ Shortlisted"
-                        if score >= SHORTLIST_THRESHOLD
-                        else "❌ Not shortlisted"
-                    )
-                }
-            )
-
-        st.dataframe(
-            filtered_table,
-            use_container_width=True,
-            hide_index=True
-        )
-
-    else:
-
-        st.warning(
-            "No candidates match the selected filters."
-        )
-
-    # =====================================================
-    # CSV EXPORT
-    # =====================================================
-
-    st.markdown(
-        "### 📥 Export Results"
-    )
-
-    export_data = []
-
-    for candidate in filtered_candidates:
-
-        score = candidate[3]
-
-        export_data.append(
-            {
-                "Candidate Name": candidate[1],
-                "Resume": candidate[2],
-                "Match Score": score,
-                "Status": (
-                    "Shortlisted"
-                    if score >= SHORTLIST_THRESHOLD
-                    else "Not shortlisted"
-                )
-            }
-        )
-
-    if export_data:
-
-        export_df = pd.DataFrame(
-            export_data
-        )
-
-        csv_data = export_df.to_csv(
-            index=False
-        )
-
-        st.download_button(
-            label="📥 Download Candidate Results",
-            data=csv_data,
-            file_name="candidate_results.csv",
-            mime="text/csv"
-        )
-
-else:
-
-    st.info(
-        "No candidates have been analyzed yet."
-    )
-
 
 st.divider()
 
@@ -949,6 +687,248 @@ if st.button(
 
 
 # =========================================================
+# CANDIDATE DATABASE DASHBOARD
+# =========================================================
+
+st.divider()
+
+st.markdown(
+    '<div class="section-title">'
+    '📊 Candidate Dashboard'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+database_candidates = get_all_candidates()
+
+
+if database_candidates:
+
+    total_candidates = len(database_candidates)
+
+    shortlisted_candidates = [
+        candidate
+        for candidate in database_candidates
+        if candidate[3] >= SHORTLIST_THRESHOLD
+    ]
+
+    average_score = (
+        sum(
+            candidate[3]
+            for candidate in database_candidates
+        )
+        / total_candidates
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+
+        st.metric(
+            "👥 Total Candidates",
+            total_candidates
+        )
+
+    with col2:
+
+        st.metric(
+            "🏆 Shortlisted",
+            len(shortlisted_candidates)
+        )
+
+    with col3:
+
+        st.metric(
+            "📈 Average Match",
+            f"{average_score:.1f}%"
+        )
+
+    st.write("")
+
+    # =====================================================
+    # STORED RANKINGS
+    # =====================================================
+
+    st.markdown(
+        "### 🏆 Stored Candidate Rankings"
+    )
+
+    stored_table = []
+
+    for candidate in database_candidates:
+
+        score = candidate[3]
+
+        stored_table.append(
+            {
+                "Candidate": candidate[1],
+                "Resume": candidate[2],
+                "Match Score": f"{score}%",
+                "Status": (
+                    "✅ Shortlisted"
+                    if score >= SHORTLIST_THRESHOLD
+                    else "❌ Not shortlisted"
+                )
+            }
+        )
+
+    st.dataframe(
+        stored_table,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # =====================================================
+    # RECRUITER FILTERS
+    # =====================================================
+
+    st.markdown(
+        "### 🔎 Recruiter Filters"
+    )
+
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
+
+    with filter_col1:
+
+        search_name = st.text_input(
+            "Search candidate",
+            placeholder="Enter candidate name..."
+        )
+
+    with filter_col2:
+
+        minimum_score = st.slider(
+            "Minimum match score",
+            min_value=0,
+            max_value=100,
+            value=0,
+            step=5
+        )
+
+    with filter_col3:
+
+        shortlisted_only = st.checkbox(
+            "🏆 Show shortlisted only"
+        )
+
+    filtered_candidates = database_candidates
+
+    if search_name.strip():
+
+        filtered_candidates = [
+            candidate
+            for candidate in filtered_candidates
+            if search_name.lower()
+            in candidate[1].lower()
+        ]
+
+    filtered_candidates = [
+        candidate
+        for candidate in filtered_candidates
+        if candidate[3] >= minimum_score
+    ]
+
+    if shortlisted_only:
+
+        filtered_candidates = [
+            candidate
+            for candidate in filtered_candidates
+            if candidate[3] >= SHORTLIST_THRESHOLD
+        ]
+
+    # =====================================================
+    # FILTERED CANDIDATES
+    # =====================================================
+
+    st.markdown(
+        "### 🔍 Filtered Candidates"
+    )
+
+    if filtered_candidates:
+
+        filtered_table = []
+
+        for candidate in filtered_candidates:
+
+            score = candidate[3]
+
+            filtered_table.append(
+                {
+                    "Candidate": candidate[1],
+                    "Resume": candidate[2],
+                    "Match Score": f"{score}%",
+                    "Status": (
+                        "✅ Shortlisted"
+                        if score >= SHORTLIST_THRESHOLD
+                        else "❌ Not shortlisted"
+                    )
+                }
+            )
+
+        st.dataframe(
+            filtered_table,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+
+        st.warning(
+            "No candidates match the selected filters."
+        )
+
+    # =====================================================
+    # CSV EXPORT
+    # =====================================================
+
+    st.markdown(
+        "### 📥 Export Results"
+    )
+
+    export_data = []
+
+    for candidate in filtered_candidates:
+
+        score = candidate[3]
+
+        export_data.append(
+            {
+                "Candidate Name": candidate[1],
+                "Resume": candidate[2],
+                "Match Score": score,
+                "Status": (
+                    "Shortlisted"
+                    if score >= SHORTLIST_THRESHOLD
+                    else "Not shortlisted"
+                )
+            }
+        )
+
+    if export_data:
+
+        export_df = pd.DataFrame(
+            export_data
+        )
+
+        csv_data = export_df.to_csv(
+            index=False
+        )
+
+        st.download_button(
+            label="📥 Download Candidate Results",
+            data=csv_data,
+            file_name="candidate_results.csv",
+            mime="text/csv"
+        )
+
+else:
+
+    st.info(
+        "No candidates have been analyzed yet."
+    )
+
+
+# =========================================================
 # CANDIDATE COMPARISON
 # =========================================================
 
@@ -966,27 +946,13 @@ comparison_candidates = get_all_candidates()
 
 if len(comparison_candidates) >= 2:
 
-    # -----------------------------------------------------
-    # CREATE CANDIDATE OPTIONS
-    # -----------------------------------------------------
-
     candidate_options = {}
 
     for candidate in comparison_candidates:
 
-        candidate_id = candidate[0]
-
-        candidate_name = candidate[1]
-
-        score = candidate[3]
-
         candidate_options[
-            f"{candidate_name} — {score}%"
-        ] = candidate_id
-
-    # -----------------------------------------------------
-    # SELECT CANDIDATES
-    # -----------------------------------------------------
+            f"{candidate[1]} — {candidate[3]}%"
+        ] = candidate[0]
 
     selected_candidates = st.multiselect(
         "Select candidates to compare",
@@ -1011,9 +977,9 @@ if len(comparison_candidates) >= 2:
             if candidate[0] in selected_ids
         ]
 
-        # -------------------------------------------------
+        # =================================================
         # COMPARISON TABLE
-        # -------------------------------------------------
+        # =================================================
 
         st.markdown(
             "### 📊 Candidate Comparison"
@@ -1025,18 +991,16 @@ if len(comparison_candidates) >= 2:
 
             score = candidate[3]
 
-            status = (
-                "✅ Shortlisted"
-                if score >= SHORTLIST_THRESHOLD
-                else "❌ Not shortlisted"
-            )
-
             comparison_data.append(
                 {
                     "Candidate": candidate[1],
                     "Match Score": f"{score}%",
                     "Resume": candidate[2],
-                    "Status": status
+                    "Status": (
+                        "✅ Shortlisted"
+                        if score >= SHORTLIST_THRESHOLD
+                        else "❌ Not shortlisted"
+                    )
                 }
             )
 
@@ -1046,9 +1010,9 @@ if len(comparison_candidates) >= 2:
             hide_index=True
         )
 
-        # -------------------------------------------------
+        # =================================================
         # SCORE COMPARISON
-        # -------------------------------------------------
+        # =================================================
 
         st.markdown(
             "### 📈 Score Comparison"
@@ -1068,9 +1032,9 @@ if len(comparison_candidates) >= 2:
                 )
             )
 
-        # -------------------------------------------------
+        # =================================================
         # BEST CANDIDATE
-        # -------------------------------------------------
+        # =================================================
 
         best_candidate = max(
             selected_records,
