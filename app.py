@@ -3,7 +3,12 @@ import fitz
 import pandas as pd
 
 from llm_service import analyze_resume
-from database import create_table, save_candidate, get_all_candidates
+from database import (
+    create_table,
+    save_candidate,
+    get_all_candidates,
+    clear_candidates
+)
 
 
 # =========================================================
@@ -29,6 +34,25 @@ SHORTLIST_THRESHOLD = 70
 # =========================================================
 
 create_table()
+
+
+# =========================================================
+# TEMPORARY DATABASE RESET
+# =========================================================
+# To clear the existing candidates on Streamlit Cloud,
+# open the deployed app once with:
+#
+# https://YOUR-APP-URL.streamlit.app/?reset=true
+#
+# After clearing, the URL parameter is removed automatically.
+
+if st.query_params.get("reset") == "true":
+
+    clear_candidates()
+
+    st.query_params.clear()
+
+    st.rerun()
 
 
 # =========================================================

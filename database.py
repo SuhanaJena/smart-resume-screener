@@ -319,3 +319,20 @@ def get_all_candidates():
     connection.close()
 
     return candidates
+
+
+# ==========================================
+# CLEAR ALL CANDIDATES
+# ==========================================
+
+def clear_candidates():
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        "DELETE FROM candidates"
+    )
+
+    connection.commit()
+    connection.close()
